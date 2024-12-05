@@ -1,6 +1,6 @@
 [project]
 name = "dht22-webui"
-version = "1.0.0"
+version = "1.0.1"
 description = "DHT22 Sensor monitoring system"
 readme = "README.md"
 requires-python = ">=3.12"

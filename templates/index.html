@@ -595,7 +595,7 @@
                         day: 'numeric',
                         hour: settings.timeFormat === '24h' ? '2-digit' : 'numeric',
                         minute: '2-digit',
-                        hour12: settings.timeFormat === '12h'
+                        hour12: settings.timeFormat !== '24h'
                     });
                 };
             });
@@ -668,9 +668,9 @@
                                 return date.toLocaleString('en-US', {
                                     month: 'short',
                                     day: 'numeric',
-                                    hour: 'numeric',
+                                    hour: settings.timeFormat === '24h' ? '2-digit' : 'numeric',
                                     minute: '2-digit',
-                                    hour12: true
+                                    hour12: settings.timeFormat !== '24h'
                                 });
                             },
                             label: function (context) {
@@ -689,12 +689,12 @@
                         time: {
                             unit: 'minute',
                             displayFormats: {
-                                minute: 'HH:mm',
-                                hour: 'HH:mm',
+                                minute: settings.timeFormat === '24h' ? 'HH:mm' : 'hh:mm a',
+                                hour: settings.timeFormat === '24h' ? 'HH:mm' : 'hh:mm a',
                                 day: 'MMM D',
                                 month: 'MMM YYYY'
                             },
-                            tooltipFormat: 'MMM D, HH:mm'
+                            tooltipFormat: settings.timeFormat === '24h' ? 'MMM D, HH:mm' : 'MMM D, hh:mm a'
                         },
                         grid: {
                             display: false
