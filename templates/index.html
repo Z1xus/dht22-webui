@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>DHT22 Sensor Data</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+    <style>
+        :root {
+            --container-width: min(95vw, 1200px);
+            --spacing-sm: clamp(0.5rem, 1vw, 1rem);
+            --spacing-md: clamp(1rem, 2vw, 1.5rem);
+            --spacing-lg: clamp(1.5rem, 3vw, 2rem);
+            --font-size-sm: clamp(0.875rem, 1.5vw, 1rem);
+            --font-size-md: clamp(1rem, 2vw, 1.25rem);
+            --font-size-lg: clamp(1.5rem, 3vw, 2rem);
+            --font-size-xl: clamp(2rem, 4vw, 2.5rem);
+
+            --color-bg: #010409;
+            --color-surface: #0d1117;
+            --color-surface-raised: #151b23;
+            --color-border: #30363d;
+            --color-text: #c9d1d9;
+            --color-text-muted: #8b949e;
+            --color-primary: #8957e5;
+            --color-success: #3fb950;
+            --color-danger: #f85149;
+            --tooltip-background: #0d1117;
+            --tooltip-border: #30363d;
+            --tooltip-text: #c9d1d9;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            min-height: 100vh;
+            padding: var(--spacing-md);
+            padding-bottom: calc(var(--spacing-md) + 60px);
+        }
+
+        .container {
+            width: var(--container-width);
+            margin: 0 auto;
+        }
+
+        h1,
+        h2 {
+            color: var(--color-text);
+            margin-bottom: var(--spacing-lg);
+            font-size: var(--font-size-xl);
+            border-bottom: 1px solid var(--color-border);
+            padding-bottom: var(--spacing-sm);
+        }
+
+        h2 {
+            font-size: var(--font-size-lg);
+            margin-top: var(--spacing-lg);
+        }
+
+        .card {
+            background-color: var(--color-surface);
+            padding: var(--spacing-lg);
+            border-radius: 12px;
+            border: 1px solid var(--color-border);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            margin-top: var(--spacing-lg);
+        }
+
+        .readings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .reading {
+            font-size: var(--font-size-lg);
+            color: var(--color-text);
+            padding: var(--spacing-md);
+            background-color: var(--color-surface-raised);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--spacing-md);
+        }
+
+        .reading span.value {
+            color: var(--color-primary);
+            font-weight: 600;
+            min-width: max(100px, 30%);
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            display: inline-block;
+            transform-origin: center;
+            will-change: transform;
+        }
+
+        .timestamp {
+            color: var(--color-text-muted);
+            font-size: var(--font-size-sm);
+            text-align: right;
+            margin-top: var(--spacing-sm);
+            padding-top: var(--spacing-sm);
+            border-top: 1px solid var(--color-border);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+            margin: var(--spacing-md) 0;
+            background: linear-gradient(180deg,
+                    var(--color-surface) 0%,
+                    var(--color-surface-raised) 100%);
+            border-radius: 12px;
+            padding: var(--spacing-md);
+            border: 1px solid var(--color-border);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .chart-title {
+            font-size: var(--font-size-md);
+            font-weight: 600;
+            color: var(--color-text);
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: var(--spacing-md);
+            align-items: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            font-size: var(--font-size-sm);
+            color: var(--color-text-muted);
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .time-controls {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin: var(--spacing-md) 0;
+            flex-wrap: wrap;
+        }
+
+        .time-button {
+            padding: var(--spacing-sm) var(--spacing-md);
+            background-color: var(--color-surface-raised);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: var(--font-size-sm);
+            transition: all 0.2s ease;
+        }
+
+        .time-button:hover {
+            border-color: var(--color-primary);
+        }
+
+        .time-button.active {
+            background-color: var(--color-primary);
+            border-color: var(--color-primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-md);
+            margin: var(--spacing-md) 0;
+        }
+
+        .stat-card {
+            background-color: var(--color-surface-raised);
+            padding: var(--spacing-md);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: var(--font-size-lg);
+            color: var(--color-primary);
+            font-weight: 600;
+            margin: var(--spacing-sm) 0;
+            display: inline-block;
+            transform-origin: center;
+            will-change: transform;
+        }
+
+        .stat-value.updated {
+            animation: pulse 0.4s cubic-bezier(0.2, 0, 0.38, 1);
+        }
+
+        .stat-label {
+            color: var(--color-text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .connection-status {
+            position: fixed;
+            top: var(--spacing-md);
+            right: var(--spacing-md);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: 8px;
+            font-size: var(--font-size-sm);
+            background-color: var(--color-surface-raised);
+            border: 1px solid var(--color-border);
+            z-index: 1000;
+        }
+
+        .connection-status.connected {
+            color: var(--color-success);
+            border-color: var(--color-success);
+        }
+
+        .connection-status.disconnected {
+            color: var(--color-danger);
+            border-color: var(--color-danger);
+        }
+
+        @media (max-width: 480px) {
+            .reading {
+                flex-direction: column;
+                text-align: center;
+                gap: var(--spacing-sm);
+            }
+
+            .reading span.value {
+                min-width: 100%;
+                text-align: center;
+            }
+
+            .connection-status {
+                top: auto;
+                bottom: var(--spacing-md);
+                right: var(--spacing-md);
+                left: var(--spacing-md);
+                text-align: center;
+            }
+
+            .container {
+                padding: 0 var(--spacing-sm);
+            }
+
+            .card {
+                border-radius: 8px;
+                margin-left: calc(-1 * var(--spacing-sm));
+                margin-right: calc(-1 * var(--spacing-sm));
+                border-left: none;
+                border-right: none;
+            }
+        }
+
+        .settings-card {
+            margin-top: var(--spacing-md);
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-md);
+        }
+
+        .setting {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--spacing-md);
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-switch label {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: 4px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 20px;
+            cursor: pointer;
+            min-width: 90px;
+            transition: all 0.2s ease;
+        }
+
+        .toggle-switch .option {
+            padding: 4px 8px;
+            border-radius: 16px;
+            font-size: var(--font-size-sm);
+            transition: all 0.2s ease;
+            text-align: center;
+            flex: 1;
+        }
+
+        .toggle-switch input:not(:checked)+label .option:first-child,
+        .toggle-switch input:checked+label .option:last-child {
+            background: var(--color-primary);
+            color: var(--color-text);
+        }
+
+        .toggle-switch input:checked+label .option:first-child,
+        .toggle-switch input:not(:checked)+label .option:last-child {
+            color: var(--color-text-muted);
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .reading.updated {
+            animation: pulse 0.4s cubic-bezier(0.2, 0, 0.38, 1);
+        }
+
+        .chart-container.loading::after {
+            content: 'Loading data...';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--color-text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .error-message {
+            color: var(--color-danger);
+            font-size: var(--font-size-sm);
+            margin-top: var(--spacing-sm);
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        @media (max-width: 480px) {
+            .setting {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--spacing-sm);
+            }
+
+            .toggle-switch {
+                align-self: flex-start;
+                width: 100%;
+            }
+
+            .toggle-switch label {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .toggle-switch .option {
+                flex: 1;
+                text-align: center;
+            }
+        }
+
+        /* Add these styles to handle mobile chart legends */
+        @media (max-width: 480px) {
+            .chart-container {
+                padding: var(--spacing-sm);
+                height: 250px;
+                padding-bottom: var(--spacing-lg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="connection-status">
+        <span class="status-text">Connecting</span>
+        <span class="loading-dots">...</span>
+    </div>
+    <div class="container">
+        <h1>DHT22 Sensor Readings</h1>
+
+        <div class="card">
+            <div class="readings-grid">
+                <div class="reading" id="temperature">
+                    Temperature
+                    <span class="value">--°C</span>
+                </div>
+                <div class="reading" id="humidity">
+                    Humidity
+                    <span class="value">--%</span>
+                </div>
+            </div>
+            <div class="timestamp" id="timestamp">Last update: --:--:-- --</div>
+        </div>
+
+        <div class="card settings-card">
+            <div class="settings-grid">
+                <div class="setting">
+                    <label>Temperature Unit</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="tempUnit" />
+                        <label for="tempUnit">
+                            <span class="option">°C</span>
+                            <span class="option">°F</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="setting">
+                    <label>Time Format</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="timeFormat" />
+                        <label for="timeFormat">
+                            <span class="option">12h</span>
+                            <span class="option">24h</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2>Historical Data</h2>
+        <div class="card">
+            <div class="time-controls">
+                <button class="time-button active" data-timeframe="1h">1 Hour</button>
+                <button class="time-button" data-timeframe="24h">24 Hours</button>
+                <button class="time-button" data-timeframe="7d">7 Days</button>
+                <button class="time-button" data-timeframe="30d">30 Days</button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="avg-temp">--°C</div>
+                    <div class="stat-label">Average Temperature</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avg-humidity">--%</div>
+                    <div class="stat-label">Average Humidity</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="temp-range">--°C</div>
+                    <div class="stat-label">Temperature Range</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="humidity-range">--%</div>
+                    <div class="stat-label">Humidity Range</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">Temperature History</div>
+                    <div class="chart-legend">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #8957e5"></div>
+                            <span>Temperature (°C)</span>
+                        </div>
+                    </div>
+                </div>
+                <canvas id="tempChart"></canvas>
+                <div class="error-message" id="temp-chart-error"></div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">Humidity History</div>
+                    <div class="chart-legend">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #3fb950"></div>
+                            <span>Humidity (%)</span>
+                        </div>
+                    </div>
+                </div>
+                <canvas id="humidityChart"></canvas>
+                <div class="error-message" id="humidity-chart-error"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const settings = {
+            tempUnit: localStorage.getItem('tempUnit') || 'C',
+            timeFormat: localStorage.getItem('timeFormat') || '12h'
+        };
+        let last_reading = null;
+
+        function convertTemp(celsius, unit) {
+            if (unit === 'F') {
+                return (celsius * 9 / 5) + 32;
+            }
+            return celsius;
+        }
+
+        function formatTime(date, format) {
+            return date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: format === '12h'
+            });
+        }
+
+        function updateReading(element, value, unit) {
+            const valueSpan = element.querySelector('.value');
+            const numericValue = parseFloat(value);
+            const displayValue = unit === 'temp' ?
+                `${convertTemp(numericValue, settings.tempUnit).toFixed(1)}°${settings.tempUnit}` :
+                `${numericValue.toFixed(1)}%`;
+
+            if (valueSpan.textContent !== displayValue) {
+                valueSpan.textContent = displayValue;
+                element.classList.remove('updated');
+                void element.offsetWidth;
+                element.classList.add('updated');
+            }
+        }
+
+        document.getElementById('tempUnit').checked = settings.tempUnit === 'F';
+        document.getElementById('timeFormat').checked = settings.timeFormat === '24h';
+
+        document.getElementById('tempUnit').addEventListener('change', (e) => {
+            settings.tempUnit = e.target.checked ? 'F' : 'C';
+            localStorage.setItem('tempUnit', settings.tempUnit);
+            if (last_reading) {
+                updateReading(document.getElementById('temperature'), last_reading.temperature, 'temp');
+            }
+            fetch(`/api/stats/${currentTimeframe}`)
+                .then(response => response.json())
+                .then(stats => {
+                    updateCharts({ [currentTimeframe]: stats });
+                });
+        });
+
+        document.getElementById('timeFormat').addEventListener('change', (e) => {
+            settings.timeFormat = e.target.checked ? '24h' : '12h';
+            localStorage.setItem('timeFormat', settings.timeFormat);
+            if (last_reading) {
+                document.getElementById('timestamp').textContent =
+                    `Last update: ${formatTime(new Date(), settings.timeFormat)}`;
+            }
+            [tempChart, humidityChart].forEach(chart => {
+                chart.options.scales.x.time.displayFormats = {
+                    minute: settings.timeFormat === '24h' ? 'HH:mm' : 'hh:mm a',
+                    hour: settings.timeFormat === '24h' ? 'HH:mm' : 'hh:mm a',
+                    day: 'MMM D',
+                    month: 'MMM YYYY'
+                };
+                chart.options.plugins.tooltip.callbacks.title = function (tooltipItems) {
+                    const date = new Date(tooltipItems[0].parsed.x);
+                    return date.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: settings.timeFormat === '24h' ? '2-digit' : 'numeric',
+                        minute: '2-digit',
+                        hour12: settings.timeFormat === '12h'
+                    });
+                };
+            });
+            tempChart.update();
+            humidityChart.update();
+        });
+
+        const socket = io({
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+        });
+
+        const statusEl = document.querySelector('.connection-status');
+        let tempChart, humidityChart;
+        let currentTimeframe = '1h';
+
+        function initCharts() {
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart'
+                },
+                elements: {
+                    line: {
+                        tension: 0.4,
+                        borderWidth: 2,
+                        spanGaps: true
+                    },
+                    point: {
+                        radius: 0,
+                        hitRadius: 10,
+                        hoverRadius: 4
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(13, 17, 23, 0.95)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        borderColor: 'rgba(48, 54, 61, 0.5)',
+                        borderWidth: 0,
+                        padding: 12,
+                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)',
+                        boxPadding: 6,
+                        displayColors: false,
+                        titleFont: {
+                            size: 12,
+                            weight: '500',
+                            family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif'
+                        },
+                        bodyFont: {
+                            size: 12,
+                            weight: '400',
+                            family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif'
+                        },
+                        titleMarginBottom: 4,
+                        callbacks: {
+                            title: function (tooltipItems) {
+                                const date = new Date(tooltipItems[0].parsed.x);
+                                return date.toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true
+                                });
+                            },
+                            label: function (context) {
+                                const value = context.parsed.y;
+                                const label = context.dataset.label;
+                                const unit = label === 'Temperature' ?
+                                    `°${settings.tempUnit}` : '%';
+                                return `${value.toFixed(1)}${unit}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'minute',
+                            displayFormats: {
+                                minute: 'HH:mm',
+                                hour: 'HH:mm',
+                                day: 'MMM D',
+                                month: 'MMM YYYY'
+                            },
+                            tooltipFormat: 'MMM D, HH:mm'
+                        },
+                        grid: {
+                            display: false
+                        },
+                        border: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#8b949e',
+                            maxRotation: 0,
+                            padding: 10,
+                            autoSkip: true,
+                            maxTicksLimit: 8,
+                            display: window.innerWidth > 480,
+                        }
+                    },
+                    y: {
+                        beginAtZero: false,
+                        grid: {
+                            color: '#30363d44',
+                            drawBorder: false
+                        },
+                        border: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#8b949e',
+                            padding: 10,
+                            callback: function (value) {
+                                if (window.innerWidth <= 480) {
+                                    return value.toFixed(0);
+                                }
+                                return value.toFixed(1);
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '',
+                            color: '#8b949e',
+                            font: {
+                                size: window.innerWidth <= 480 ? 10 : 12
+                            },
+                            padding: {
+                                top: 0,
+                                bottom: window.innerWidth <= 480 ? 0 : 10
+                            }
+                        }
+                    }
+                }
+            };
+
+            tempChart = new Chart(
+                document.getElementById('tempChart'),
+                {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            label: 'Temperature',
+                            borderColor: '#8957e5',
+                            backgroundColor: '#8957e522',
+                            fill: true,
+                            cubicInterpolationMode: 'monotone',
+                            parsing: false,
+                            spanGaps: true
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            ...commonOptions.scales,
+                            y: {
+                                ...commonOptions.scales.y,
+                                title: {
+                                    display: true,
+                                    text: `Temperature (°${settings.tempUnit})`,
+                                    color: '#8b949e'
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+
+            humidityChart = new Chart(
+                document.getElementById('humidityChart'),
+                {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            label: 'Humidity',
+                            borderColor: '#3fb950',
+                            backgroundColor: '#3fb95022',
+                            fill: true,
+                            cubicInterpolationMode: 'monotone',
+                            parsing: false,
+                            spanGaps: true
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            ...commonOptions.scales,
+                            y: {
+                                ...commonOptions.scales.y,
+                                title: {
+                                    display: true,
+                                    text: 'Humidity (%)',
+                                    color: '#8b949e'
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+
+            window.addEventListener('resize', () => {
+                const isMobile = window.innerWidth <= 480;
+
+                [tempChart, humidityChart].forEach(chart => {
+                    chart.options.scales.x.ticks.display = !isMobile;
+
+                    if (chart.options.scales.y.title) {
+                        chart.options.scales.y.title.padding = {
+                            top: 0,
+                            bottom: isMobile ? 0 : 10
+                        };
+                        chart.options.scales.y.title.font = {
+                            size: isMobile ? 10 : 12
+                        };
+                    }
+
+                    chart.update('none');
+                });
+            });
+        }
+
+        function initializeView() {
+            initCharts();
+            document.querySelector('.time-button[data-timeframe="1h"]').click();
+        }
+
+        function updateCharts(stats) {
+            if (!stats || !stats[currentTimeframe]) return;
+
+            const data = stats[currentTimeframe];
+            if (!Array.isArray(data) || data.length === 0) {
+                console.log("No data available for the selected timeframe");
+                return;
+            }
+
+            data.sort((a, b) => new Date(a.timestamp.$date || a.timestamp) - new Date(b.timestamp.$date || b.timestamp));
+
+            const tempData = [];
+            const humidityData = [];
+            let totalTemp = 0;
+            let totalHumidity = 0;
+            let minTemp = Infinity;
+            let maxTemp = -Infinity;
+            let minHumidity = Infinity;
+            let maxHumidity = -Infinity;
+
+            data.forEach(point => {
+                const timestamp = new Date(point.timestamp.$date || point.timestamp).getTime();
+
+                if (point.avg_temp != null && point.avg_humidity != null) {
+                    const temp = settings.tempUnit === 'F' ?
+                        convertTemp(point.avg_temp, 'F') :
+                        point.avg_temp;
+
+                    tempData.push({
+                        x: timestamp,
+                        y: Number(temp.toFixed(1))
+                    });
+                    humidityData.push({
+                        x: timestamp,
+                        y: Number(point.avg_humidity.toFixed(1))
+                    });
+
+                    const minTempConverted = settings.tempUnit === 'F' ?
+                        convertTemp(point.min_temp, 'F') :
+                        point.min_temp;
+                    const maxTempConverted = settings.tempUnit === 'F' ?
+                        convertTemp(point.max_temp, 'F') :
+                        point.max_temp;
+
+                    totalTemp += temp;
+                    totalHumidity += point.avg_humidity;
+                    minTemp = Math.min(minTemp, minTempConverted);
+                    maxTemp = Math.max(maxTemp, maxTempConverted);
+                    minHumidity = Math.min(minHumidity, point.min_humidity);
+                    maxHumidity = Math.max(maxHumidity, point.max_humidity);
+                }
+            });
+
+            if (tempData.length > 0) {
+                const avgTemp = totalTemp / tempData.length;
+                const avgHumidity = totalHumidity / humidityData.length;
+
+                function updateStatWithAnimation(elementId, newValue) {
+                    const element = document.getElementById(elementId);
+                    if (element.textContent !== newValue) {
+                        element.textContent = newValue;
+                        element.classList.remove('updated');
+                        void element.offsetWidth;
+                        element.classList.add('updated');
+                    }
+                }
+
+                updateStatWithAnimation('avg-temp', `${avgTemp.toFixed(1)}°${settings.tempUnit}`);
+                updateStatWithAnimation('avg-humidity', `${avgHumidity.toFixed(1)}%`);
+                updateStatWithAnimation('temp-range', `${minTemp.toFixed(1)} - ${maxTemp.toFixed(1)}°${settings.tempUnit}`);
+                updateStatWithAnimation('humidity-range', `${minHumidity.toFixed(1)} - ${maxHumidity.toFixed(1)}%`);
+
+                const now = new Date();
+                let startTime;
+                let timeUnit;
+
+                switch (currentTimeframe) {
+                    case '1h':
+                        startTime = new Date(now - 60 * 60 * 1000);
+                        timeUnit = 'minute';
+                        break;
+                    case '24h':
+                        startTime = new Date(now - 24 * 60 * 60 * 1000);
+                        timeUnit = 'hour';
+                        break;
+                    case '7d':
+                        startTime = new Date(now - 7 * 24 * 60 * 60 * 1000);
+                        timeUnit = 'day';
+                        break;
+                    case '30d':
+                        startTime = new Date(now - 30 * 24 * 60 * 60 * 1000);
+                        timeUnit = 'month';
+                        break;
+                }
+
+                [tempChart, humidityChart].forEach(chart => {
+                    const isTemp = chart === tempChart;
+
+                    chart.options.scales.x.time.unit = timeUnit;
+                    chart.options.scales.x.min = startTime.getTime();
+                    chart.options.scales.x.max = now.getTime();
+
+                    chart.options.scales.y.min = Math.floor((isTemp ? minTemp : minHumidity) - 0.5);
+                    chart.options.scales.y.max = Math.ceil((isTemp ? maxTemp : maxHumidity) + 0.5);
+
+                    if (isTemp) {
+                        chart.options.scales.y.title.text = `Temperature (°${settings.tempUnit})`;
+                        chart.data.datasets[0].data = tempData;
+                    } else {
+                        chart.data.datasets[0].data = humidityData;
+                    }
+
+                    chart.update();
+                });
+            }
+        }
+
+        document.querySelectorAll('.time-button').forEach(button => {
+            button.addEventListener('click', async () => {
+                document.querySelectorAll('.time-button').forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+                currentTimeframe = button.dataset.timeframe;
+
+                setChartLoading('tempChart', true);
+                setChartLoading('humidityChart', true);
+
+                try {
+                    const response = await fetch(`/api/stats/${currentTimeframe}`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch data');
+                    }
+                    const stats = await response.json();
+                    updateCharts({ [currentTimeframe]: stats });
+                } catch (error) {
+                    console.error('Error fetching stats:', error);
+                    showError('temp-chart-error', 'Failed to load temperature data');
+                    showError('humidity-chart-error', 'Failed to load humidity data');
+                } finally {
+                    setChartLoading('tempChart', false);
+                    setChartLoading('humidityChart', false);
+                }
+            });
+        });
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            statusEl.innerHTML = '<span class="status-text">Connected</span>';
+            statusEl.classList.add('connected');
+            statusEl.classList.remove('disconnected');
+            initializeView();
+        });
+
+        socket.on('sensor_data', (data) => {
+            const readings = JSON.parse(data);
+            last_reading = readings;
+            updateReading(document.getElementById('temperature'), readings.temperature, 'temp');
+            updateReading(document.getElementById('humidity'), readings.humidity, 'humidity');
+            document.getElementById('timestamp').textContent =
+                `Last update: ${formatTime(new Date(), settings.timeFormat)}`;
+        });
+
+        socket.on('stats_update', (data) => {
+            const stats = JSON.parse(data);
+            updateCharts(stats);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            statusEl.innerHTML = '<span class="status-text">Disconnected</span>';
+            statusEl.classList.add('disconnected');
+            statusEl.classList.remove('connected');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.log('Connection error:', error);
+            statusEl.innerHTML = '<span class="status-text">Connection error</span>';
+            statusEl.classList.add('disconnected');
+            statusEl.classList.remove('connected');
+            showError('temp-chart-error', 'Connection error: Please check your internet connection');
+        });
+
+        function showError(elementId, message) {
+            const errorEl = document.getElementById(elementId);
+            errorEl.textContent = message;
+            errorEl.classList.add('visible');
+            setTimeout(() => {
+                errorEl.classList.remove('visible');
+            }, 5000);
+        }
+
+        function setChartLoading(chartId, loading) {
+            const container = document.getElementById(chartId).closest('.chart-container');
+            if (loading) {
+                container.classList.add('loading');
+            } else {
+                container.classList.remove('loading');
+            }
+        }
+    </script>
+</body>
+
+</html>
