@@ -4,10 +4,10 @@
 <head>
     <title>DHT22 Sensor Data</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+    <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/luxon.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chartjs-adapter-luxon.min.js') }}"></script>
     <style>
         :root {
             --container-width: min(95vw, 1200px);

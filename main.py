@@ -26,7 +26,13 @@ except errors.ServerSelectionTimeoutError as e:
 except Exception as e:
 	raise SystemExit(f"Database setup failed: {e}") from e
 
-app = Flask(__name__)
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if not os.path.exists(STATIC_DIR):
+    os.makedirs(os.path.join(STATIC_DIR, "js"))
+
+app = Flask(__name__, 
+    static_folder=STATIC_DIR,
+    static_url_path="/static")
 socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=10, ping_interval=5, async_mode="gevent")
 
 try:
