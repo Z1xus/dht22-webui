@@ -415,16 +415,6 @@
             animation: pulse 0.4s cubic-bezier(0.2, 0, 0.38, 1);
         }
 
-        .chart-container.loading::after {
-            content: 'Loading data...';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: var(--color-text-muted);
-            font-size: var(--font-size-sm);
-        }
-
         .error-message {
             color: var(--color-danger);
             font-size: var(--font-size-sm);
@@ -672,19 +662,48 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 750,
-                    easing: 'easeInOutQuart'
+                    duration: 1000,
+                    easing: 'easeOutQuint',
+                    x: {
+                        type: 'number',
+                        from: (ctx) => {
+                            if (!ctx.parsed) return null;
+                            const chart = ctx.chart;
+                            const previousScale = chart._oldScale || chart.scales.x;
+                            try {
+                                return previousScale ? previousScale.getPixelForValue(ctx.parsed.x) : ctx.scale.getPixelForValue(ctx.parsed.x);
+                            } catch (e) {
+                                return null;
+                            }
+                        }
+                    },
+                    y: {
+                        type: 'number',
+                        duration: 1000,
+                        easing: 'easeOutQuint',
+                    }
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 400
+                        }
+                    }
                 },
                 elements: {
                     line: {
-                        tension: 0.4,
+                        tension: 0.3,
                         borderWidth: 2,
                         spanGaps: true
                     },
                     point: {
                         radius: 0,
                         hitRadius: 10,
-                        hoverRadius: 4
+                        hoverRadius: 4,
+                        hoverBorderWidth: 2,
+                        transition: {
+                            duration: 400
+                        }
                     }
                 },
                 interaction: {
@@ -987,6 +1006,15 @@
 
                 [tempChart, humidityChart].forEach(chart => {
                     const isTemp = chart === tempChart;
+                    
+                    chart._oldScale = chart.scales.x;
+
+                    const currentData = chart.data.datasets[0].data;
+                    const newData = isTemp ? tempData : humidityData;
+                    const significantChange = currentData.length > 0 && 
+                        Math.abs(currentData.length - newData.length) > currentData.length * 0.7;
+
+                    chart.options.animation.duration = significantChange ? 0 : 1000;
 
                     chart.options.scales.x.time.unit = timeUnit;
                     chart.options.scales.x.min = startTime.getTime();
@@ -1003,6 +1031,12 @@
                     }
 
                     chart.update();
+
+                    if (significantChange) {
+                        setTimeout(() => {
+                            chart.options.animation.duration = 1000;
+                        }, 100);
+                    }
                 });
             }
         }
@@ -1012,9 +1046,6 @@
                 document.querySelectorAll('.time-button').forEach(b => b.classList.remove('active'));
                 button.classList.add('active');
                 currentTimeframe = button.dataset.timeframe;
-
-                setChartLoading('tempChart', true);
-                setChartLoading('humidityChart', true);
 
                 try {
                     const response = await fetch(`/api/stats/${currentTimeframe}`);
@@ -1027,9 +1058,6 @@
                     console.error('Error fetching stats:', error);
                     showError('temp-chart-error', 'Failed to load temperature data');
                     showError('humidity-chart-error', 'Failed to load humidity data');
-                } finally {
-                    setChartLoading('tempChart', false);
-                    setChartLoading('humidityChart', false);
                 }
             });
         });
@@ -1078,15 +1106,6 @@
             setTimeout(() => {
                 errorEl.classList.remove('visible');
             }, 5000);
-        }
-
-        function setChartLoading(chartId, loading) {
-            const container = document.getElementById(chartId).closest('.chart-container');
-            if (loading) {
-                container.classList.add('loading');
-            } else {
-                container.classList.remove('loading');
-            }
         }
     </script>
 </body>
