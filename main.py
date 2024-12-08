@@ -30,6 +30,12 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 if not os.path.exists(STATIC_DIR):
     os.makedirs(os.path.join(STATIC_DIR, "js"))
 
+for file in ["android-chrome-192x192.png", "android-chrome-512x512.png", 
+             "apple-touch-icon.png", "favicon-16x16.png", 
+             "favicon-32x32.png", "favicon.ico", "site.webmanifest"]:
+    if not os.path.exists(os.path.join(STATIC_DIR, file)):
+        print(f"Warning: {file} not found in static directory")
+
 app = Flask(__name__, 
     static_folder=STATIC_DIR,
     static_url_path="/static")
